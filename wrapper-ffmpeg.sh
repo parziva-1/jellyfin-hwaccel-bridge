@@ -63,6 +63,45 @@ while [ $i -lt $n ]; do
 done
 
 if [ -n "$target_enc" ]; then
+  # Force the hardware encoder's input to NV12/limited-range, unconditionally.
+  # Many legacy codecs (RV30/RV40, Indeo, Cinepak, old DivX/XviD, Sorenson)
+  # decode to plain/full-range YUV420P or other layouts that AMediaCodec
+  # hardware encoders declare supported but actually hang or misbehave on -
+  # this is a known-unreliable-input-format problem, not a resolution/
+  # alignment issue (this is why WebRTC always force-converts to NV12 on its
+  # own Android hardware-encode path rather than trusting the capability
+  # flag). format=nv12 auto-inserts an swscale conversion that normalizes
+  # ANY source layout; setrange=tv re-tags it limited-range afterward, since
+  # hardware encoders generally assume BT.601/709 limited range and some
+  # legacy decoders output full-range instead. Software encode (the
+  # fallback path, using $args unmodified) already handles arbitrary input
+  # formats fine and is deliberately left untouched.
+  vf_idx=-1
+  j=0
+  while [ $j -lt ${#out[@]} ]; do
+    case "${out[$j]}" in
+      -vf|-filter:v) vf_idx=$((j+1)) ;;
+    esac
+    j=$((j+1))
+  done
+  if [ $vf_idx -ge 0 ]; then
+    out[$vf_idx]="${out[$vf_idx]},format=nv12,setrange=tv"
+  else
+    final=()
+    inserted=0
+    j=0
+    while [ $j -lt ${#out[@]} ]; do
+      if [ "$inserted" = "0" ]; then
+        case "${out[$j]}" in
+          -codec:v*|-c:v*) final+=("-vf" "format=nv12,setrange=tv"); inserted=1 ;;
+        esac
+      fi
+      final+=("${out[$j]}")
+      j=$((j+1))
+    done
+    out=("${final[@]}")
+  fi
+
   bv="${maxrate_val:-4M}"
   final=()
   inserted=0
