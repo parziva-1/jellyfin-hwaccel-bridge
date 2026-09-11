@@ -186,7 +186,10 @@ en línea en cada archivo — nada necesita editarse a mano en los scripts):
    compilado, y coloca `wrapper-ffmpeg.sh` + `bridge-daemon.py` en algún lugar de él.
 2. Configura las variables de entorno de arriba para que coincidan con tus rutas de bind mount
    reales y tu red de contenedores, y luego corre `bridge-daemon.py` como proceso de larga
-   duración (un simple loop de reinicio-al-caer alrededor de él es un seguro barato).
+   duración — `run-daemon-resilient.sh` viene incluido exactamente para eso (lo reinicia si se
+   cae, un seguro barato). Si lo lanzas desde un mecanismo de arranque, lee primero la tercera
+   restricción de diseño de arriba — `BRIDGE_PYTHON_PATH` necesita ser una ruta absoluta en ese
+   contexto, no un `python3` pelado.
 3. Empaqueta `bridge-client.pl` en la imagen de tu contenedor de Jellyfin (o móntalo como bind
    mount), y apunta el flag de arranque `--ffmpeg` de Jellyfin (o la variable de entorno
    equivalente para tu despliegue) a él en vez del binario real de ffmpeg.

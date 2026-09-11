@@ -59,7 +59,7 @@ bytes themselves. That's what makes this fast and simple: no video data is ever 
 
 ## Three design constraints that matter if you build on this
 
-These weren't obvious going in, and getting either one wrong produces symptoms that look
+These weren't obvious going in, and getting any of the three wrong produces symptoms that look
 completely unrelated to the actual cause.
 
 ### 1. Decode must always stay software
@@ -169,8 +169,10 @@ inline in each file — nothing needs to be hand-edited in the scripts themselve
 1. On the host (Termux or otherwise), install an ffmpeg build with hardware mediacodec support
    compiled in, and drop `wrapper-ffmpeg.sh` + `bridge-daemon.py` somewhere on it.
 2. Set the environment variables above to match your actual bind-mount paths and container
-   network, then run `bridge-daemon.py` as a long-lived process (a simple restart-on-crash loop
-   around it is cheap insurance).
+   network, then run `bridge-daemon.py` as a long-lived process — `run-daemon-resilient.sh` is
+   included here for exactly that (restarts it on crash, cheap insurance). If you launch it from a
+   boot mechanism, read the third design constraint above first — `BRIDGE_PYTHON_PATH` needs to be
+   an absolute path in that context, not a bare `python3`.
 3. Bake `bridge-client.pl` into your Jellyfin container image (or bind-mount it in), and point
    Jellyfin's `--ffmpeg` startup flag (or the equivalent env var for your deployment) at it instead
    of the real ffmpeg binary.
