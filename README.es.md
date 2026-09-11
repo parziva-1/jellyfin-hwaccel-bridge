@@ -155,9 +155,14 @@ arrancar rutinariamente no lo están.
 Un riesgo secundario relacionado, que vale la pena cubrir de todas formas: si el demonio y el
 contenedor que depende de él arrancan ambos desde la misma secuencia de arranque, no hay ninguna
 garantía inherente de que el demonio haya enlazado su socket de escucha antes de que la propia
-verificación de capacidades de arranque del contenedor lo alcance. Hacer que el código de gestión
-de contenedores espere, acotado, a que el puerto del demonio esté escuchando antes de un arranque
-en frío es un seguro barato contra esa carrera, además de resolver bien el tema del `PATH`.
+verificación de capacidades de arranque del contenedor lo alcance. La solución es un loop simple
+de reintento de conexión TCP acotado — sondear el puerto del demonio por unos segundos antes de
+que el código de gestión de contenedores haga un arranque en frío del contenedor dependiente,
+siguiendo de cualquier forma una vez se agote el tiempo — un seguro barato contra esa carrera,
+además de resolver bien el tema del `PATH`. Vale la pena implementarlo de verdad, no solo
+mencionarlo: una vez que este chequeo y el arreglo del `PATH` estuvieron ambos en su lugar, una
+petición real de transcodificación forzada que le tocó justo la secuencia hardware-falla→fallback
+igual se entregó exitosamente, sin rastro de la carrera original.
 
 ## Qué es realmente reutilizable acá vs. qué es específico de tu setup
 

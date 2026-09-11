@@ -141,8 +141,12 @@ the way it is in the shell you're testing from; boot-time execution contexts rou
 A related, secondary risk worth guarding against regardless: if the daemon and the container that
 depends on it both start from the same boot sequence, there's no inherent guarantee the daemon has
 bound its listening socket before the container's own startup-time capability check reaches it.
-Having the container-management code wait, bounded, for the daemon's port to be listening before a
-cold start is cheap insurance against that race, on top of getting the `PATH` issue right.
+The fix is a simple bounded TCP-connect retry loop — poll the daemon's port for a few seconds
+before your container-management code performs a cold start of the dependent container,
+proceeding either way once the timeout elapses — cheap insurance against that race, on top of
+getting the `PATH` issue right. This is worth actually implementing, not just noting: once it and
+the `PATH` fix were both in place, a real forced-transcode request that happened to hit the
+hardware-fail→fallback sequence still delivered successfully, with no trace of the original race.
 
 ## What's genuinely reusable here vs. what's specific to your setup
 
