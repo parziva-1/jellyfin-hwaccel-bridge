@@ -62,9 +62,9 @@ realmente cruza la frontera cliente/demonio es una lista corta de argumentos y u
 en vivo de stdout/stderr — nunca los bytes del video en sí. Eso es lo que hace esto rápido y
 simple: nunca se hace proxy de datos de video.
 
-## Dos restricciones de diseño que importan si construyes sobre esto
+## Tres restricciones de diseño que importan si construyes sobre esto
 
-No eran obvias al principio, y equivocarse en cualquiera de las dos produce síntomas que parecen
+No eran obvias al principio, y equivocarse en cualquiera de las tres produce síntomas que parecen
 completamente ajenos a la causa real.
 
 ### 1. La decodificación siempre debe quedarse en software
@@ -131,6 +131,33 @@ El invariante que hay que mantener, si estás construyendo algo similar: **un co
 downstream lento o totalmente ausente nunca debe poder bloquear tu proceso de seguir drenando su
 entrada upstream.** Cualquier loop de relevo que viole esto está a un lector silencioso de un
 bloqueo total.
+
+### 3. Los scripts de arranque no heredan el `PATH` de tu shell interactiva — usa rutas absolutas
+
+Esta costó tiempo real de servicio caído en rastrear, y el síntoma no apuntaba para nada hacia la
+causa real.
+
+Si corres el demonio (o su envoltorio de reinicio-al-caer) vía un mecanismo de arranque que escala
+privilegios en un shell nuevo — un envoltorio `su`/`sudo`, una unidad de systemd con su propio
+entorno mínimo, un script de init — ese shell **no** hereda el `PATH` que tiene tu sesión
+interactiva normal. Un loop de reinicio que lanza el demonio con un `python3` pelado (confiando en
+que se pueda resolver por `PATH`, cierto en cualquier shell interactiva desde la que lo pruebes)
+va a fallar con "command not found" en cada arranque, aunque funcione perfecto cada vez que lo
+corres a mano. El loop de reinicio entonces hace exactamente lo que está diseñado a hacer —
+reintenta de inmediato, para siempre — lo que convierte un binario faltante en un bucle de caídas
+apretado en vez de un error obvio de una sola línea.
+
+La solución es mecánica: usa la ruta absoluta al intérprete (o binario) en cualquier cosa que un
+script de arranque lance — `/ruta/a/python3`, no `python3`. No confíes en que el `PATH` esté
+configurado igual que en el shell desde el que estás probando; los contextos de ejecución al
+arrancar rutinariamente no lo están.
+
+Un riesgo secundario relacionado, que vale la pena cubrir de todas formas: si el demonio y el
+contenedor que depende de él arrancan ambos desde la misma secuencia de arranque, no hay ninguna
+garantía inherente de que el demonio haya enlazado su socket de escucha antes de que la propia
+verificación de capacidades de arranque del contenedor lo alcance. Hacer que el código de gestión
+de contenedores espere, acotado, a que el puerto del demonio esté escuchando antes de un arranque
+en frío es un seguro barato contra esa carrera, además de resolver bien el tema del `PATH`.
 
 ## Qué es realmente reutilizable acá vs. qué es específico de tu setup
 

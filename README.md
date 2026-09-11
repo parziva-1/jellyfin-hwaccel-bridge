@@ -57,7 +57,7 @@ mounts your container uses, just from the host side), so the only thing that act
 client/daemon boundary is a short argv and a live stdout/stderr text stream — never the media
 bytes themselves. That's what makes this fast and simple: no video data is ever proxied.
 
-## Two design constraints that matter if you build on this
+## Three design constraints that matter if you build on this
 
 These weren't obvious going in, and getting either one wrong produces symptoms that look
 completely unrelated to the actual cause.
@@ -120,6 +120,29 @@ just means "nothing gets through," never "everything stalls forever."
 The invariant to hold onto, if you're building anything similar: **a slow or entirely absent
 downstream consumer must never be able to block your process from continuing to drain its upstream
 input.** Any relay loop that violates this is one quiet reader away from a full deadlock.
+
+### 3. Boot-time scripts don't inherit your interactive shell's `PATH` — use absolute paths
+
+This one cost real downtime to track down, and the symptom pointed nowhere near the actual cause.
+
+If you run the daemon (or its restart-on-crash wrapper) via a boot mechanism that escalates
+privilege in a fresh shell — a `su`/`sudo` wrapper, a systemd unit with its own minimal
+environment, an init script — that shell does **not** inherit the `PATH` your normal interactive
+session has. A restart loop that launches the daemon with a bare `python3` (relying on it being
+resolvable on `PATH`, which is true in every interactive shell you'd test it from) will fail with
+"command not found" on every single boot, even though it works perfectly every time you run it by
+hand. The restart loop then does exactly what it's designed to do — retries immediately, forever —
+which turns one missing binary into a tight crash-loop rather than an obvious one-line error.
+
+The fix is mechanical: use the absolute path to the interpreter (or binary) in anything a
+boot-time script launches — `/path/to/python3`, not `python3`. Don't rely on `PATH` being set up
+the way it is in the shell you're testing from; boot-time execution contexts routinely aren't.
+
+A related, secondary risk worth guarding against regardless: if the daemon and the container that
+depends on it both start from the same boot sequence, there's no inherent guarantee the daemon has
+bound its listening socket before the container's own startup-time capability check reaches it.
+Having the container-management code wait, bounded, for the daemon's port to be listening before a
+cold start is cheap insurance against that race, on top of getting the `PATH` issue right.
 
 ## What's genuinely reusable here vs. what's specific to your setup
 
